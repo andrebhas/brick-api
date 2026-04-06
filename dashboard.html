@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>BrickAPI - API Inspector & API Docs Generator</title>
+
+    <!-- Local Tailwind CSS -->
+    <link href="./assets/css/output.css" rel="stylesheet">
+
+    <!-- Local Fonts -->
+    <link href="./assets/fonts/inter.css" rel="stylesheet">
+</head>
+
+<body class="bg-slate-900 text-slate-100 font-sans h-screen overflow-hidden">
+    <div class="flex h-full">
+        <!-- Left Panel: Unassigned Endpoints -->
+        <div class="w-1/4 bg-slate-800 border-r border-slate-700 flex flex-col">
+            <!-- Project Settings -->
+            <div class="p-6 border-b border-slate-800">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                        <i data-lucide="settings" class="w-4 h-4"></i>
+                        Project Settings
+                    </h2>
+                    <button id="export-btn"
+                        class="px-3 py-1.5 bg-cyan-600/20 hover:bg-cyan-600 text-cyan-400 hover:text-white border border-cyan-600/30 rounded-lg font-medium text-xs transition-all flex items-center gap-2 shadow-lg">
+                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Export OpenAPI
+                    </button>
+                </div>
+                <select id="project-selector"
+                    class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 text-sm focus:outline-none focus:border-blue-500 mb-3"></select>
+                <div class="space-y-2">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">API Title</label>
+                        <input type="text" id="global-title" placeholder="API Title"
+                            class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 text-sm focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Description</label>
+                        <textarea id="global-desc" placeholder="API Description"
+                            class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 text-sm focus:outline-none focus:border-blue-500 h-20 resize-none"
+                            rows="2"></textarea>
+                    </div>
+                </div>
+                <button id="save-global-btn"
+                    class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2 mt-3">
+                    <i data-lucide="save" class="w-4 h-4"></i>
+                    Save Project Info
+                </button>
+            </div>
+
+            <!-- Unassigned List -->
+            <div class="flex-1 overflow-y-auto p-4 no-scrollbar">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                        <i data-lucide="activity" class="w-4 h-4"></i>
+                        Unassigned Endpoints
+                    </h3>
+                    <button id="refresh-btn"
+                        class="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 transition-colors"
+                        title="Refresh Captured Data">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M23 4v6h-6"></path>
+                            <path d="M1 20v-6h6"></path>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div id="unassigned" class="sortable-list space-y-2 min-h-[100px]"></div>
+            </div>
+        </div>
+
+        <!-- Center Panel: Groups Manager -->
+        <div class="w-1/3 bg-slate-900 border-r border-slate-700 flex flex-col">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center">
+                <h2 class="text-lg font-semibold flex items-center gap-2">
+                    <i data-lucide="folder-tree" class="w-4 h-4"></i>
+                    Groups Manager
+                </h2>
+                <button id="create-group-btn"
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors flex items-center gap-2">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    Add Group
+                </button>
+            </div>
+            <div id="groups-list" class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
+                <!-- Groups will be rendered here -->
+            </div>
+        </div>
+
+        <!-- Right Panel: Endpoint Editor -->
+        <div class="flex-1 bg-slate-950 flex flex-col">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center">
+                <h2 class="text-lg font-semibold flex items-center gap-2">
+                    <i data-lucide="file-code" class="w-4 h-4"></i>
+                    Endpoint Editor
+                </h2>
+            </div>
+            <div class="flex-1 overflow-y-auto p-6 no-scrollbar">
+                <div id="editor-placeholder" class="flex flex-col items-center justify-center h-full text-slate-500">
+                    <div class="bg-slate-800 p-6 rounded-full mb-4 shadow-xl">
+                        <i data-lucide="mouse-pointer-click" class="w-12 h-12 text-slate-600"></i>
+                    </div>
+                    <p class="text-lg font-medium">Select an endpoint to edit details</p>
+                    <p class="text-sm opacity-50">Configure summaries, descriptions, and mock bodies</p>
+                </div>
+
+                <div id="endpoint-editor" class="hidden space-y-6 max-w-4xl mx-auto">
+                    <div class="grid grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-200 mb-2">Summary / Title</label>
+                            <input type="text" id="edit-summary"
+                                class="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 text-sm focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div class="flex gap-4">
+                            <div class="flex-1">
+                                <label class="block text-sm font-semibold text-slate-200 mb-2">Path</label>
+                                <input type="text" id="edit-path" disabled
+                                    class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-500 text-sm opacity-60 cursor-not-allowed">
+                            </div>
+                            <div class="w-24">
+                                <label class="block text-sm font-semibold text-slate-200 mb-2">Method</label>
+                                <input type="text" id="edit-method" disabled
+                                    class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-500 text-sm opacity-60 cursor-not-allowed uppercase font-bold text-center">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-200 mb-2">Description</label>
+                        <textarea id="edit-description"
+                            class="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 text-sm focus:outline-none focus:border-blue-500 h-24 resize-none"
+                            placeholder="What does this endpoint do?"></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-6">
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="block text-sm font-semibold text-slate-200">Request Headers</label>
+                            </div>
+                            <textarea id="edit-headers"
+                                class="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 font-mono text-xs h-24 focus:outline-none focus:border-blue-500 resize-none"
+                                placeholder='{ "Authorization": "Bearer ...", "X-API-Key": "..." }'></textarea>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-6">
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-sm font-semibold text-slate-200">Request Body / Context</label>
+                                <span class="text-xs text-slate-400">JSON Format</span>
+                            </div>
+                            <textarea id="edit-reqbody"
+                                class="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 font-mono text-xs h-64 focus:outline-none focus:border-blue-500 resize-none"
+                                placeholder="{ ... }"></textarea>
+                        </div>
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-sm font-semibold text-slate-200">Response Body</label>
+                                <span class="text-xs text-slate-400">JSON Format</span>
+                            </div>
+                            <textarea id="edit-resbody"
+                                class="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 font-mono text-xs h-64 focus:outline-none focus:border-blue-500 resize-none"
+                                placeholder="{ ... }"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="pt-6 border-t border-slate-800 flex justify-between items-center mt-6">
+                        <button id="delete-endpoint-btn"
+                            class="px-4 py-2 bg-red-900/30 hover:bg-red-900/50 text-red-300 border border-red-900/50 rounded-lg font-medium text-sm transition-colors flex items-center gap-2">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            Delete Endpoint
+                        </button>
+                        <button id="save-endpoint-btn"
+                            class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2">
+                            <i data-lucide="check" class="w-4 h-4"></i>
+                            Save Endpoint
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2"></div>
+
+    <!-- Load scripts at the end to avoid CSP issues -->
+    <script src="./assets/js/sortable.js"></script>
+    <script src="./assets/js/lucide.js"></script>
+    <script src="dashboard.js"></script>
+
+</body>
+
+</html>
