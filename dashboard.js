@@ -24,6 +24,7 @@ const reqBodyInput = document.getElementById('edit-reqbody');
 const resBodyInput = document.getElementById('edit-resbody');
 const headersInput = document.getElementById('edit-headers');
 const deleteEndpointBtn = document.getElementById('delete-endpoint-btn');
+const deleteProjectBtn = document.getElementById('delete-project-btn');
 
 // Initialize
 /**
@@ -148,7 +149,7 @@ function renderAll() {
     });
 
     const unassignedIds = projectFingerprints.filter(id => !assignedIds.has(id));
-    unassignedIds.forEach(id => renderCard(id, unassignedList));
+    unassignedIds.forEach(id => renderCard(id, unassignedList, true));
 
     // 2. Render Groups (Column 2) - RESPECT ORDER
     const groupOrder = proj.groupOrder || Object.keys(gd).filter(k => k !== 'unassigned');
@@ -168,7 +169,7 @@ function renderAll() {
     if (window.lucide) lucide.createIcons();
 }
 
-function renderCard(id, container) {
+function renderCard(id, container, isUnassigned = false) {
     const data = endpoints[id];
     if (!data) return;
     const card = document.createElement('div');
@@ -179,13 +180,19 @@ function renderCard(id, container) {
     const methodClass = `method-${method}`;
     const autoTitle = data.summary || (data.normalizedPath.split('/').filter(Boolean).pop() || '/');
 
+    let checkboxHTML = '';
+    if (isUnassigned) {
+        checkboxHTML = `<input type="checkbox" class="endpoint-checkbox w-4 h-4 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-600 focus:ring-offset-slate-800 mr-2 mt-0.5 cursor-pointer" data-id="${id}" onclick="event.stopPropagation(); window.toggleCheckbox(event)">`;
+    }
+
     card.innerHTML = `
         <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <span class="font-bold text-xs px-2 py-0.5 rounded bg-slate-700/50 uppercase ${methodClass}">${data.method}</span>
-                <span class="text-sm font-medium text-slate-200 truncate max-w-[160px]" title="${data.normalizedPath}">${autoTitle}</span>
+            <div class="flex items-center gap-2 overflow-hidden">
+                ${checkboxHTML}
+                <span class="font-bold text-xs px-2 py-0.5 rounded bg-slate-700/50 uppercase flex-shrink-0 ${methodClass}">${data.method}</span>
+                <span class="text-sm font-medium text-slate-200 truncate ${isUnassigned ? 'max-w-[120px]' : 'max-w-[160px]'}" title="${data.normalizedPath}">${autoTitle}</span>
             </div>
-            <div class="flex items-center gap-1.5 overflow-hidden">
+            <div class="flex items-center gap-1.5 overflow-hidden flex-shrink-0">
                 <svg class="w-4 h-4 text-slate-600 group-hover:text-blue-400 transition-colors flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
             </div>
         </div>
@@ -572,6 +579,56 @@ document.getElementById('save-global-btn').onclick = async () => {
     showToast('Project configuration saved.', 'success');
 };
 
+deleteProjectBtn.onclick = async () => {
+    if (!currentProject) {
+        showToast('No site selected to delete', 'warning');
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to permanently delete the site "${currentProject}" and ALL its endpoints? This cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        // Collect all fingerprints associated with this project
+        const projectFingerprints = Object.keys(endpoints).filter(id => 
+            endpoints[id].hostname === currentProject || (!endpoints[id].hostname && currentProject === 'others')
+        );
+
+        // Delete all associated endpoints
+        for (const id of projectFingerprints) {
+            await performDeleteEndpoint(id, true);
+        }
+
+        // Delete project metadata
+        delete projectsData[currentProject];
+
+        // Save state
+        await chrome.storage.local.set({ projectsData });
+
+        // Select next available project or reset
+        const remaining = Object.keys(projectsData);
+        if (remaining.length > 0) {
+            currentProject = remaining[0];
+            projectSelector.value = currentProject;
+            updateProjectSelector();
+            selectProject(currentProject);
+        } else {
+            currentProject = '';
+            updateProjectSelector();
+            globalTitle.value = '';
+            globalDesc.value = '';
+            renderAll();
+        }
+
+        showToast('Site deleted successfully', 'success');
+        if (window.lucide) lucide.createIcons();
+    } catch (e) {
+        showToast('Error deleting project: ' + e.message, 'error');
+        console.error(e);
+    }
+};
+
 // Debounce helper for group creation
 let createGroupDebounce = false;
 
@@ -787,9 +844,201 @@ document.getElementById('export-btn').onclick = async () => {
     a.click();
 };
 
+document.getElementById('import-btn').onclick = () => {
+    document.getElementById('import-file-input').click();
+};
+
+document.getElementById('import-file-input').onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+        const fileContent = await file.text();
+        let spec;
+        
+        // Try to parse as JSON first, then YAML
+        try {
+            spec = JSON.parse(fileContent);
+        } catch (e) {
+            // If JSON fails, try YAML (simple parsing for basic YAML)
+            showToast('JSON parsing successful. YAML support coming soon.', 'info');
+            spec = JSON.parse(fileContent);
+        }
+
+        // Validate the spec
+        const validation = validateOpenAPISpec(spec);
+        if (!validation.valid) {
+            showToast(`Import failed: ${validation.errors.join(', ')}`, 'error');
+            return;
+        }
+
+        // Parse the OpenAPI spec
+        const importedEndpoints = parseOpenAPISpec(spec);
+        if (importedEndpoints.length === 0) {
+            showToast('No endpoints found in the specification', 'warning');
+            return;
+        }
+
+        // Get the project name from the spec or use current project
+        const projectName = currentProject || spec.info?.title || 'Imported API';
+        
+        // Convert to storage format
+        const { endpointsMap, groupsData } = convertToStorageFormat(importedEndpoints, projectName);
+
+        // Get current data
+        const currentData = await chrome.storage.local.get(null);
+        
+        // Merge with existing endpoints
+        const mergedData = { ...currentData, ...endpointsMap };
+
+        // Merge group data
+        if (!projectsData[projectName]) {
+            projectsData[projectName] = { 
+                groupsData: { unassigned: [] }, 
+                global: { title: spec.info?.title || projectName, desc: spec.info?.description || '' },
+                groupOrder: []
+            };
+        }
+        
+        // Add new endpoints by group
+        Object.keys(groupsData).forEach(groupName => {
+            if (!projectsData[projectName].groupsData[groupName]) {
+                projectsData[projectName].groupsData[groupName] = [];
+            }
+            
+            const currentGroupEndpoints = projectsData[projectName].groupsData[groupName];
+            projectsData[projectName].groupsData[groupName] = [...currentGroupEndpoints, ...groupsData[groupName]];
+            
+            // Update groupOrder for new groups
+            if (groupName !== 'unassigned') {
+                if (!projectsData[projectName].groupOrder) {
+                    projectsData[projectName].groupOrder = Object.keys(projectsData[projectName].groupsData).filter(k => k !== 'unassigned');
+                } else if (!projectsData[projectName].groupOrder.includes(groupName)) {
+                    projectsData[projectName].groupOrder.push(groupName);
+                }
+            }
+        });
+
+        // Save to storage
+        mergedData.projectsData = projectsData;
+        await chrome.storage.local.set(mergedData);
+
+        // Reload the dashboard
+        await load();
+        projectSelector.value = projectName;
+        currentProject = projectName;
+        selectProject(projectName);
+
+        showToast(`Successfully imported ${importedEndpoints.length} endpoints!`, 'success');
+    } catch (error) {
+        console.error('Import error:', error);
+        showToast(`Import failed: ${error.message}`, 'error');
+    }
+
+    // Reset the file input
+    e.target.value = '';
+};
+
 document.getElementById('refresh-btn').onclick = async () => {
     await load();
     showToast('Dashboard data refreshed', 'success');
 };
+
+window.toggleCheckbox = function(event) {
+    const checkedBoxes = document.querySelectorAll('.endpoint-checkbox:checked');
+    const totalBoxes = document.querySelectorAll('.endpoint-checkbox');
+    const deleteSelectedBtn = document.getElementById('delete-selected-btn');
+    const masterCheckbox = document.getElementById('master-checkbox');
+    
+    // Update Delete Selected button visibility
+    if (deleteSelectedBtn) {
+        if (checkedBoxes.length > 0) {
+            deleteSelectedBtn.classList.remove('hidden');
+        } else {
+            deleteSelectedBtn.classList.add('hidden');
+        }
+    }
+
+    // Update Master Checkbox state
+    if (masterCheckbox) {
+        if (checkedBoxes.length === 0) {
+            masterCheckbox.checked = false;
+            masterCheckbox.indeterminate = false;
+        } else if (checkedBoxes.length === totalBoxes.length) {
+            masterCheckbox.checked = true;
+            masterCheckbox.indeterminate = false;
+        } else {
+            masterCheckbox.checked = false;
+            masterCheckbox.indeterminate = true;
+        }
+    }
+};
+
+// Master Checkbox Logic
+const masterCheckbox = document.getElementById('master-checkbox');
+if (masterCheckbox) {
+    masterCheckbox.onchange = (e) => {
+        const isChecked = e.target.checked;
+        const allCheckboxes = document.querySelectorAll('.endpoint-checkbox');
+        allCheckboxes.forEach(cb => cb.checked = isChecked);
+        window.toggleCheckbox();
+    };
+}
+
+// Delete Selected Button Logic
+const deleteSelectedBtn = document.getElementById('delete-selected-btn');
+if (deleteSelectedBtn) {
+    deleteSelectedBtn.onclick = async () => {
+        const checkedBoxes = document.querySelectorAll('.endpoint-checkbox:checked');
+        if (checkedBoxes.length === 0) return;
+        
+        if (!confirm(`Delete ${checkedBoxes.length} selected endpoints?\nThis cannot be undone.`)) return;
+        
+        let deletedCount = 0;
+        for (const box of checkedBoxes) {
+            const id = box.dataset.id;
+            await performDeleteEndpoint(id, true);
+            deletedCount++;
+        }
+        
+        await chrome.storage.local.set({ projectsData });
+        renderAll();
+        showToast(`Deleted ${deletedCount} endpoints`, 'success');
+        deleteSelectedBtn.classList.add('hidden');
+        if (masterCheckbox) {
+            masterCheckbox.checked = false;
+            masterCheckbox.indeterminate = false;
+        }
+    };
+}
+
+// Delete All Button Logic
+const deleteAllBtn = document.getElementById('delete-all-btn');
+if (deleteAllBtn) {
+    deleteAllBtn.onclick = async () => {
+        if (!currentProject || !projectsData[currentProject]) return;
+        
+        const unassignedItems = projectsData[currentProject].groupsData.unassigned || [];
+        if (unassignedItems.length === 0) {
+            showToast('No unassigned endpoints to delete.', 'info');
+            return;
+        }
+        
+        if (!confirm(`Are you sure you want to permanently delete ALL ${unassignedItems.length} unassigned endpoints?`)) return;
+        
+        for(const id of unassignedItems) {
+            await performDeleteEndpoint(id, true);
+        }
+        
+        await chrome.storage.local.set({ projectsData });
+        renderAll();
+        showToast('All unassigned endpoints have been permanently deleted', 'success');
+        if (deleteSelectedBtn) deleteSelectedBtn.classList.add('hidden');
+        if (masterCheckbox) {
+            masterCheckbox.checked = false;
+            masterCheckbox.indeterminate = false;
+        }
+    };
+}
 
 load();

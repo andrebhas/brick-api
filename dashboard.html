@@ -23,21 +23,44 @@
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                         <i data-lucide="settings" class="w-4 h-4"></i>
-                        Project Settings
+                        Site Settings
                     </h2>
-                    <button id="export-btn"
-                        class="px-3 py-1.5 bg-cyan-600/20 hover:bg-cyan-600 text-cyan-400 hover:text-white border border-cyan-600/30 rounded-lg font-medium text-xs transition-all flex items-center gap-2 shadow-lg">
-                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <polyline points="7 10 12 15 17 10"></polyline>
-                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                    <div class="flex gap-2">
+                        <button id="import-btn"
+                            class="px-3 py-1.5 bg-green-600/20 hover:bg-green-600 text-green-400 hover:text-white border border-green-600/30 rounded-lg font-medium text-xs transition-all flex items-center gap-2 shadow-lg">
+                            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17 8 12 3 7 8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                            Import OpenAPI
+                        </button>
+                        <button id="export-btn"
+                            class="px-3 py-1.5 bg-cyan-600/20 hover:bg-cyan-600 text-cyan-400 hover:text-white border border-cyan-600/30 rounded-lg font-medium text-xs transition-all flex items-center gap-2 shadow-lg">
+                            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            Export OpenAPI
+                        </button>
+                    </div>
+                </div>
+                <input type="file" id="import-file-input" accept=".json,.yaml,.yml" style="display: none;">
+                <div class="flex gap-2 mb-3">
+                    <select id="project-selector"
+                        class="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 text-sm focus:outline-none focus:border-blue-500"></select>
+                    <button id="delete-project-btn"
+                        class="px-3 py-2 bg-red-900/10 border border-red-500/20 hover:bg-red-600 hover:text-white text-red-500 rounded-lg transition-all flex items-center justify-center shadow-sm"
+                        title="Delete Site">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                         </svg>
-                        Export OpenAPI
                     </button>
                 </div>
-                <select id="project-selector"
-                    class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 text-sm focus:outline-none focus:border-blue-500 mb-3"></select>
                 <div class="space-y-2">
                     <div>
                         <label class="block text-xs font-medium text-slate-400 mb-1">API Title</label>
@@ -54,7 +77,7 @@
                 <button id="save-global-btn"
                     class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2 mt-3">
                     <i data-lucide="save" class="w-4 h-4"></i>
-                    Save Project Info
+                    Save Site Info
                 </button>
             </div>
 
@@ -75,6 +98,22 @@
                             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                         </svg>
                     </button>
+                </div>
+                
+                <!-- Bulk Action Bar -->
+                <div class="flex justify-between items-center bg-slate-800/50 p-2 rounded mb-2 border border-slate-700 w-full mt-2">
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="master-checkbox" class="w-4 h-4 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-600 focus:ring-offset-slate-800 cursor-pointer">
+                        <span class="text-xs text-slate-300 font-medium whitespace-nowrap">Select All</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <button id="delete-selected-btn" class="hidden px-2 py-1 text-[10px] bg-red-900/30 text-red-400 rounded border border-red-900/50 hover:bg-red-600 hover:text-white transition-colors uppercase font-bold">
+                            Delete Selected
+                        </button>
+                        <button id="delete-all-btn" class="px-2 py-1 text-[10px] bg-slate-700 text-slate-300 rounded border border-slate-600 hover:bg-red-600 hover:border-red-600 hover:text-white transition-colors uppercase font-bold">
+                            Delete All
+                        </button>
+                    </div>
                 </div>
                 <div id="unassigned" class="sortable-list space-y-2 min-h-[100px]"></div>
             </div>
@@ -197,6 +236,7 @@
     <!-- Load scripts at the end to avoid CSP issues -->
     <script src="./assets/js/sortable.js"></script>
     <script src="./assets/js/lucide.js"></script>
+    <script src="import-openapi.js"></script>
     <script src="dashboard.js"></script>
 
 </body>
