@@ -3,6 +3,9 @@
 
 BrickAPI is a high-performance Chrome Extension that eliminates manual documentation by capturing real-time network traffic and transforming it into production-ready OpenAPI specifications.
 
+![Dashboard Overview](assets/screenshots/dashboard.png)
+![Popup Interaction](assets/screenshots/popup.png)
+
 ## ✨ Key Features
 - **Intelligent Traffic Sniffer**: Capture Headers, Payloads, and JSON with zero latency.
 - **One-Click OpenAPI Export**: Transform raw captured data into structured OpenAPI 3.1 YAML/JSON.
