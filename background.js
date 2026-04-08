@@ -112,16 +112,34 @@ class StorageManager {
   }
 
   static async getEndpoint(fingerprint) {
-    const meta = await chrome.storage.local.get(`meta_${fingerprint}`);
-    if (!meta[`meta_${fingerprint}`]) return null;
-    const { parts } = meta[`meta_${fingerprint}`];
+    const metaObj = await chrome.storage.local.get(`meta_${fingerprint}`);
+    const metaData = metaObj[`meta_${fingerprint}`];
+    if (!metaData) return null;
+    
+    if (metaData.parts === undefined) {
+        // This is an unchunked imported endpoint.
+        try {
+            if (typeof metaData.reqBody === 'string') metaData.reqBody = JSON.parse(metaData.reqBody);
+            if (typeof metaData.resBody === 'string') metaData.resBody = JSON.parse(metaData.resBody);
+        } catch(e) { }
+        return metaData;
+    }
+    
+    const { parts } = metaData;
     
     const chunkKeys = [];
     for (let i = 0; i < parts; i++) chunkKeys.push(`${fingerprint}_part${i}`);
     const chunks = await chrome.storage.local.get(chunkKeys);
     
-    const fullStr = chunkKeys.map(k => chunks[k]).join('');
-    return JSON.parse(fullStr);
+    const fullStr = chunkKeys.map(k => chunks[k] || '').join('');
+    if (!fullStr.trim()) return null;
+    
+    try {
+        return JSON.parse(fullStr);
+    } catch (e) {
+        console.error("Failed to parse endpoint chunks for", fingerprint, e);
+        return null;
+    }
   }
 }
 
@@ -141,7 +159,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === 'GET_ENDPOINT') {
-    StorageManager.getEndpoint(message.fingerprint).then(sendResponse);
+    StorageManager.getEndpoint(message.fingerprint)
+        .then(sendResponse)
+        .catch(err => {
+            console.error("GET_ENDPOINT failed:", err);
+            sendResponse(null);
+        });
     return true; // Keep channel open for async
   }
 });

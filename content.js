@@ -27,7 +27,10 @@ window.fetch = async (...args) => {
   const response = await originalFetch(...args);
   const responseClone = response.clone();
   
-  Promise.all([requestClone.text(), responseClone.text()]).then(([reqBodyStr, resBodyStr]) => {
+  Promise.all([
+    requestClone.text().catch(() => ''),
+    responseClone.text().catch(() => '')
+  ]).then(([reqBodyStr, resBodyStr]) => {
       let qParams = {};
       try {
           const params = new URL(requestClone.url).searchParams;
@@ -83,13 +86,28 @@ XMLHttpRequest.prototype.send = function(body) {
             for (const [k, v] of params.entries()) qParams[k] = v;
         } catch(e) {}
 
+        let responseTextFallback = '';
+        try {
+            if (!this.responseType || this.responseType === 'text') {
+                responseTextFallback = this.responseText;
+            } else if (this.responseType === 'json') {
+                responseTextFallback = JSON.stringify(this.response);
+            } else if (this.responseType === 'blob' || this.responseType === 'arraybuffer') {
+                responseTextFallback = '[Binary Data]';
+            } else {
+                responseTextFallback = String(this.response || '');
+            }
+        } catch (e) {
+            responseTextFallback = '';
+        }
+
         const captured = {
             url: finalUrl,
             method: this._method,
             queryParams: maskPII(qParams),
             reqHeaders: this._reqHeaders || {}, // Added headers
             reqBody: maskPII(safeParse(body)),
-            resBody: maskPII(safeParse(this.responseText)),
+            resBody: maskPII(safeParse(responseTextFallback)),
             timestamp: Date.now(),
             hostname: window.location.hostname
         };
