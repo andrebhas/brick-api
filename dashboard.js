@@ -764,6 +764,11 @@ document.getElementById('export-btn').onclick = async () => {
             if (!meta) continue;
 
             const fullData = await chrome.runtime.sendMessage({ action: 'GET_ENDPOINT', fingerprint });
+            if (!fullData) {
+                console.warn("Skipping corrupted endpoint data during export:", fingerprint);
+                continue;
+            }
+
             const path = meta.normalizedPath;
             const method = meta.method.toLowerCase();
 
