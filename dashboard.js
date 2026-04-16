@@ -20,6 +20,7 @@ const summaryInput = document.getElementById('edit-summary');
 const descInput = document.getElementById('edit-description');
 const pathInput = document.getElementById('edit-path');
 const methodInput = document.getElementById('edit-method');
+const envInput = document.getElementById('edit-environment');
 const reqBodyInput = document.getElementById('edit-reqbody');
 const resBodyInput = document.getElementById('edit-resbody');
 const headersInput = document.getElementById('edit-headers');
@@ -79,6 +80,24 @@ async function load() {
         lucide.createIcons();
     }
 }
+
+// 3. Storage Auto-Sync Listener
+chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local') {
+        const hasMetaChanges = Object.keys(changes).some(k => k.startsWith('meta_'));
+        const hasProjectChanges = changes.projectsData;
+        
+        if (hasMetaChanges || hasProjectChanges) {
+            console.log('Storage changed, reloading dashboard...');
+            load();
+        }
+    }
+});
+
+document.getElementById('refresh-btn').onclick = () => {
+    load();
+    showToast('Dashboard refreshed', 'success');
+};
 
 function updateProjectSelector() {
     const hosts = Object.keys(projectsData);
@@ -149,10 +168,30 @@ function renderAll() {
     });
 
     const unassignedIds = projectFingerprints.filter(id => !assignedIds.has(id));
+    document.getElementById('unassigned-count').innerText = unassignedIds.length;
     unassignedIds.forEach(id => renderCard(id, unassignedList, true));
 
     // 2. Render Groups (Column 2) - RESPECT ORDER
     const groupOrder = proj.groupOrder || Object.keys(gd).filter(k => k !== 'unassigned');
+
+    const totalGroupsEl = document.getElementById('total-groups-count');
+    const totalEndpointsEl = document.getElementById('total-endpoints-count');
+    const storageUsageCountEl = document.getElementById('storage-usage-count');
+
+    if (totalGroupsEl) totalGroupsEl.innerText = groupOrder.length;
+    if (totalEndpointsEl) totalEndpointsEl.innerText = assignedIds.size;
+
+    if (storageUsageCountEl) {
+        chrome.storage.local.getBytesInUse(null).then(bytes => {
+            const kb = (bytes / 1024).toFixed(2);
+            if (kb > 1024) {
+                storageUsageCountEl.innerText = (kb / 1024).toFixed(2) + ' MB';
+            } else {
+                storageUsageCountEl.innerText = kb + ' KB';
+            }
+        });
+    }
+
 
     groupOrder.forEach(groupName => {
         const ids = gd[groupName];
@@ -431,6 +470,16 @@ async function openEditor(id) {
     pathInput.value = meta.normalizedPath;
     methodInput.value = meta.method;
 
+    if (fullData.url) {
+        try {
+            envInput.value = new URL(fullData.url).origin;
+        } catch(e) {
+            envInput.value = "Unknown";
+        }
+    } else {
+        envInput.value = meta.hostname || "Imported / Manual";
+    }
+
     // Task: Handle Headers
     const capturedHeaders = fullData.reqHeaders || {};
     const savedHeaders = meta.overrides?.reqHeaders || capturedHeaders;
@@ -668,10 +717,25 @@ window.editGroupName = async (oldName) => {
     const newName = prompt('Rename Group:', oldName);
     if (newName && newName !== oldName) {
         const proj = projectsData[currentProject];
+        
+        if (proj.groupsData[newName]) {
+            showToast('A group with this name already exists.', 'warning');
+            return;
+        }
+
         proj.groupsData[newName] = proj.groupsData[oldName];
         delete proj.groupsData[oldName];
-        await saveCurrentState();
+        
+        if (proj.groupOrder) {
+            const idx = proj.groupOrder.indexOf(oldName);
+            if (idx !== -1) {
+                proj.groupOrder[idx] = newName;
+            }
+        }
+
+        await chrome.storage.local.set({ projectsData });
         renderAll();
+        showToast('Group renamed successfully', 'success');
     }
 };
 
@@ -748,10 +812,13 @@ function generateSchema(data) {
 document.getElementById('export-btn').onclick = async () => {
     const proj = projectsData[currentProject];
     const spec = {
-        openapi: "3.1.0",
-        info: { title: proj.global.title, description: proj.global.desc, version: "1.0.0" },
-        paths: {},
-        components: { securitySchemes: {} }
+        openapi: "3.0.0",
+        info: { 
+            title: proj.global.title || "API Documentation", 
+            description: proj.global.desc || "", 
+            version: "1.0.0" 
+        },
+        paths: {}
     };
 
     const groupOrder = proj.groupOrder || Object.keys(proj.groupsData).filter(k => k !== 'unassigned');
@@ -769,25 +836,42 @@ document.getElementById('export-btn').onclick = async () => {
                 continue;
             }
 
-            const path = meta.normalizedPath;
+            // Extract and sanitize hostname for variable naming
+            let host = currentProject;
+            let origin = `https://${currentProject}`;
+            if (fullData.url) {
+                try {
+                    const u = new URL(fullData.url);
+                    host = u.hostname;
+                    origin = u.origin;
+                } catch(e) {}
+            }
+            const envVarName = host.replace(/[^a-zA-Z0-9]/g, '_');
+
+            const path = meta.normalizedPath.startsWith('/') ? meta.normalizedPath : '/' + meta.normalizedPath;
             const method = meta.method.toLowerCase();
 
             if (!spec.paths[path]) spec.paths[path] = {};
 
             const tag = groupName;
 
-            // Security detection logic
+            // Security detection logic per hostname
             const finalHeaders = meta.overrides?.reqHeaders || fullData.reqHeaders || {};
             const endpointSecurity = [];
             Object.entries(finalHeaders).forEach(([h, v]) => {
                 const key = h.toLowerCase();
-                if (key === 'authorization' && v.toLowerCase().startsWith('bearer ')) {
-                    spec.components.securitySchemes['BearerAuth'] = { type: 'http', scheme: 'bearer' };
-                    endpointSecurity.push({ BearerAuth: [] });
+                const val = String(v).toLowerCase();
+                if (key === 'authorization' && val.startsWith('bearer ')) {
+                    if (!spec.components) spec.components = { securitySchemes: {} };
+                    const schemeId = `BearerAuth_${envVarName}`;
+                    spec.components.securitySchemes[schemeId] = { type: 'http', scheme: 'bearer' };
+                    endpointSecurity.push({ [schemeId]: [] });
                 } else if (key === 'x-api-key' || key === 'apikey') {
-                    const schemeName = key.replace(/[^a-zA-Z]/g, '') + 'Auth';
-                    spec.components.securitySchemes[schemeName] = { type: 'apiKey', in: 'header', name: key };
-                    endpointSecurity.push({ [schemeName]: [] });
+                    if (!spec.components) spec.components = { securitySchemes: {} };
+                    const baseSchemeName = key.replace(/[^a-zA-Z]/g, '') + 'Auth';
+                    const schemeId = `${baseSchemeName}_${envVarName}`;
+                    spec.components.securitySchemes[schemeId] = { type: 'apiKey', in: 'header', name: key };
+                    endpointSecurity.push({ [schemeId]: [] });
                 }
             });
 
@@ -799,6 +883,15 @@ document.getElementById('export-btn').onclick = async () => {
                 description: meta.description || '',
                 tags: [tag],
                 parameters: [],
+                servers: [{
+                    url: `{${envVarName}}`,
+                    variables: {
+                        [envVarName]: {
+                            default: origin,
+                            description: `Base URL for ${host}`
+                        }
+                    }
+                }],
                 responses: {
                     "200": {
                         description: "OK",
