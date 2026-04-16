@@ -75,7 +75,7 @@ class StorageManager {
   // Task 3.2: LRU Eviction Logic (Batch Deletion)
   static async _enforceLRU() {
     let usage = await chrome.storage.local.getBytesInUse(null);
-    const quotaLimit = 5242880; // 5MB generic quota limit
+    const quotaLimit = 500 * 1024 * 1024; // 500MB limit with unlimitedStorage
     const highWatermark = quotaLimit * 0.8; // 80%
     const lowWatermark = quotaLimit * 0.6; // 60%
 

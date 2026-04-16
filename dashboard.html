@@ -86,7 +86,7 @@
                 <div class="flex justify-between items-center mb-3">
                     <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                         <i data-lucide="activity" class="w-4 h-4"></i>
-                        Unassigned Endpoints
+                        Unassigned Endpoints <span id="unassigned-count" class="ml-1 bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded-full text-[10px]">0</span>
                     </h3>
                     <button id="refresh-btn"
                         class="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 transition-colors"
@@ -121,16 +121,36 @@
 
         <!-- Center Panel: Groups Manager -->
         <div class="w-1/3 bg-slate-900 border-r border-slate-700 flex flex-col">
-            <div class="p-4 border-b border-slate-700 flex justify-between items-center">
-                <h2 class="text-lg font-semibold flex items-center gap-2">
-                    <i data-lucide="folder-tree" class="w-4 h-4"></i>
-                    Groups Manager
-                </h2>
-                <button id="create-group-btn"
-                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors flex items-center gap-2">
-                    <i data-lucide="plus" class="w-4 h-4"></i>
-                    Add Group
-                </button>
+            <div class="p-4 border-b border-slate-700 flex flex-col gap-3">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <i data-lucide="folder-tree" class="w-4 h-4"></i>
+                        Groups Manager
+                    </h2>
+                    <button id="create-group-btn"
+                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors flex items-center gap-2">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        Add Group
+                    </button>
+                </div>
+                <!-- Groups Summary -->
+                <div class="grid grid-cols-2 gap-2 text-xs text-slate-400 bg-slate-800 py-2 px-3 rounded border border-slate-700">
+                    <div class="flex items-center gap-1.5">
+                        <i data-lucide="folders" class="w-3.5 h-3.5"></i>
+                        <span>Total Groups: <span id="total-groups-count" class="font-bold text-blue-400 ml-1">0</span></span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <i data-lucide="link" class="w-3.5 h-3.5"></i>
+                        <span>Total Endpoint: <span id="total-endpoints-count" class="font-bold text-blue-400 ml-1">0</span></span>
+                    </div>
+                    <div class="flex items-center gap-1.5 col-span-2 pt-1.5 border-t border-slate-700/50 mt-0.5">
+                        <i data-lucide="hard-drive" class="w-3.5 h-3.5"></i>
+                        <span class="flex-1 flex justify-between">
+                            <span>Storage Usage: <span id="storage-usage-count" class="font-bold text-emerald-400 ml-1">0 KB</span></span>
+                            <span class="opacity-50">Max: 500 MB</span>
+                        </span>
+                    </div>
+                </div>
             </div>
             <div id="groups-list" class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
                 <!-- Groups will be rendered here -->
@@ -173,6 +193,16 @@
                                     class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-500 text-sm opacity-60 cursor-not-allowed uppercase font-bold text-center">
                             </div>
                         </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-200 mb-2 flex items-center gap-2">
+                            <i data-lucide="globe" class="w-4 h-4 text-slate-400"></i>
+                            Environment (Origin URL)
+                        </label>
+                        <input type="text" id="edit-environment" disabled
+                            class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-400 text-sm opacity-60 cursor-not-allowed font-mono"
+                            placeholder="https://api.example.com">
                     </div>
 
                     <div>
